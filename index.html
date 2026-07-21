@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>t-검정 실습 — ADsP 통계 분석</title>
+<style>
+  :root {
+    --ink: #1a2332;
+    --paper: #fbfaf7;
+    --r-blue: #276dc3;
+    --r-blue-dark: #1a4e8f;
+    --console-bg: #14181f;
+    --console-text: #d8dee6;
+    --accent-warm: #b8860b;
+    --ok: #2e7d4f;
+    --err: #c0392b;
+    --line: #e2ded4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans KR', -apple-system, 'Malgun Gothic', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.75;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px 120px; }
+
+  header {
+    padding: 64px 0 40px;
+    border-bottom: 3px solid var(--ink);
+    margin-bottom: 8px;
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: 0.15em; color: var(--r-blue);
+    font-weight: 700; margin-bottom: 12px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 44px); font-weight: 800;
+    letter-spacing: -0.02em; line-height: 1.2;
+  }
+  h1 .mono { font-family: 'Consolas', 'Menlo', monospace; color: var(--r-blue); }
+  .lede { margin-top: 16px; font-size: 16px; color: #4a5568; max-width: 620px; }
+
+  #status-bar {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--console-bg); color: var(--console-text);
+    font-family: 'Consolas', 'Menlo', monospace; font-size: 13px;
+    padding: 10px 24px; display: flex; align-items: center; gap: 10px;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent-warm); flex-shrink: 0; }
+  .dot.ready { background: #4ade80; }
+  .dot.loading { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  section { padding: 48px 0 8px; }
+  .sec-label {
+    font-family: 'Consolas', monospace; font-size: 13px;
+    color: var(--r-blue); font-weight: 700; margin-bottom: 8px;
+  }
+  h2 { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 16px; }
+  h3 { font-size: 17px; font-weight: 700; margin: 28px 0 10px; }
+  p { margin-bottom: 14px; font-size: 15.5px; }
+  .hl { background: linear-gradient(transparent 55%, #ffe9a8 55%); font-weight: 700; padding: 0 2px; }
+
+  .note {
+    border-left: 4px solid var(--r-blue); background: #eef4fc;
+    padding: 14px 18px; margin: 18px 0; font-size: 14.5px; border-radius: 0 8px 8px 0;
+  }
+  .note.warn { border-color: var(--accent-warm); background: #fdf6e3; }
+
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; }
+  th { background: #f1eee6; font-weight: 700; }
+  td code, p code, li code {
+    font-family: 'Consolas', 'Menlo', monospace; font-size: 0.9em;
+    background: #eef0f3; padding: 2px 6px; border-radius: 4px; color: var(--r-blue-dark);
+  }
+  ul, ol { margin: 0 0 14px 22px; font-size: 15px; }
+  li { margin-bottom: 6px; }
+
+  .cell {
+    border: 1.5px solid var(--ink); border-radius: 12px;
+    overflow: hidden; margin: 20px 0; background: #fff;
+    box-shadow: 4px 4px 0 var(--line);
+  }
+  .cell-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px; background: #f1eee6; border-bottom: 1px solid var(--line);
+  }
+  .cell-title { font-size: 13px; font-weight: 700; color: #5a6472; }
+  .btns { display: flex; gap: 8px; }
+  button {
+    font-family: inherit; font-size: 13.5px; font-weight: 700;
+    padding: 6px 16px; border-radius: 8px; cursor: pointer;
+    border: 1.5px solid var(--ink); transition: transform .08s, box-shadow .08s;
+  }
+  button:focus-visible { outline: 3px solid var(--r-blue); outline-offset: 2px; }
+  .run-btn { background: var(--r-blue); color: #fff; border-color: var(--r-blue-dark); }
+  .run-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 0 var(--r-blue-dark); }
+  .run-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .reset-btn { background: #fff; color: var(--ink); }
+  .cell textarea {
+    width: 100%; border: none; resize: vertical;
+    font-family: 'Consolas', 'Menlo', monospace; font-size: 13.5px;
+    line-height: 1.6; padding: 14px 16px; background: #fff; color: var(--ink);
+    min-height: 60px; display: block;
+  }
+  .cell textarea:focus { outline: none; background: #fdfcf8; }
+  .cell-out {
+    background: var(--console-bg); color: var(--console-text);
+    font-family: 'Consolas', 'Menlo', monospace; font-size: 13px;
+    line-height: 1.55; padding: 14px 16px; white-space: pre-wrap;
+    display: none; border-top: 2px solid var(--r-blue);
+    max-height: 420px; overflow-y: auto;
+  }
+  .cell-out.show { display: block; }
+  .cell-out .err-line { color: #ff8a80; }
+  .out-label { color: #7a869a; font-size: 11px; letter-spacing: .1em; display: block; margin-bottom: 6px; }
+
+  footer { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--line);
+    font-size: 13px; color: #8a8577; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dot.loading { animation: none; }
+    button { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="status-bar">
+  <span class="dot loading" id="status-dot"></span>
+  <span id="status-text">webR 엔진을 불러오는 중입니다… (최초 접속 시 10~30초 소요)</span>
+</div>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">ADSP · 3과목 통계 분석 실습</div>
+  <h1>t-검정 <span class="mono">t.test()</span><br>브라우저에서 직접 실행하기</h1>
+  <p class="lede">설치 없이 이 페이지 안에서 진짜 R 코드가 실행됩니다. 코드를 자유롭게 수정하고 [실행]을 눌러 결과를 확인하세요. 숫자를 바꿔보는 것이 가장 좋은 공부입니다.</p>
+</header>
+
+<!-- ============ 1. 일표본 ============ -->
+<section>
+  <div class="sec-label">SECTION 1</div>
+  <h2>단일 표본 t-검정 (One Sample t-test)</h2>
+  <p>한 집단의 평균이 특정 값과 같은지 검정합니다. 모분산을 모르기 때문에 <span class="hl">t분포</span>를 사용합니다.</p>
+  <ul>
+    <li><b>귀무가설(H0)</b>: 모평균 = 특정 값</li>
+    <li><b>대립가설(H1)</b>: 모평균 ≠ 특정 값 (양측검정)</li>
+  </ul>
+
+  <div class="note">교재의 Wage 데이터는 ISLR 패키지가 필요합니다. 페이지 로딩 시 자동 설치를 시도하며, 설치 전에는 아래 내장 데이터(mtcars) 예제부터 실행해 보세요.</div>
+
+  <div class="cell" data-cell>
+    <div class="cell-head">
+      <span class="cell-title">예제 1-A · 내장 데이터 mtcars (즉시 실행 가능)</span>
+      <div class="btns"><button class="reset-btn">초기화</button><button class="run-btn" disabled>▶ 실행</button></div>
+    </div>
+    <textarea spellcheck="false" rows="4"># H0: 자동차 연비(mpg)의 모평균 = 20
+# H1: 모평균 ≠ 20 (alternative 생략 = 양측)
+t.test(mtcars$mpg, mu = 20)</textarea>
+    <div class="cell-out"><span class="out-label">CONSOLE OUTPUT</span><span class="out-body"></span></div>
+  </div>
+
+  <div class="cell" data-cell data-needs="ISLR">
+    <div class="cell-head">
+      <span class="cell-title">예제 1-B · Wage 데이터 (교재 p.290, ISLR 필요)</span>
+      <div class="btns"><button class="reset-btn">초기화</button><button class="run-btn" disabled>▶ 실행</button></div>
+    </div>
+    <textarea spellcheck="false" rows="6">library(ISLR)
+data(Wage)   # 미국 대서양 연안 남성 3,000명의 임금 데이터
+
+# H0: 임금의 모평균 = 100 / H1: ≠ 100
+t.test(Wage$wage, mu = 100)</textarea>
+    <div class="cell-out"><span class="out-label">CONSOLE OUTPUT</span><span class="out-body"></span></div>
+  </div>
+
+  <h3>출력 해석 3대 포인트</h3>
+  <ul>
+    <li><b>표본 크기</b>: n = df + 1 (df = 2999 → n = 3000)</li>
+    <li><b>기각 판정</b>: p-value &lt; α(0.05) → 귀무가설 기각 <span class="hl">"p작기"</span></li>
+    <li><b>신뢰구간 판정</b>: 95% 신뢰구간에 H0값 미포함 → 기각 (p &lt; α와 항상 같은 결론)</li>
+  </ul>
+</section>
+
+<!-- ============ 2. 양측/단측 ============ -->
+<section>
+  <div class="sec-label">SECTION 2</div>
+  <h2>양측검정 vs 단측검정</h2>
+  <table>
+    <tr><th>문제 표현</th><th>alternative 옵션</th><th>출력 문구</th></tr>
+    <tr><td>~와 <b>다른가</b>?</td><td><code>two.sided</code> (생략 시 기본값)</td><td>not equal to</td></tr>
+    <tr><td>~보다 <b>큰가</b>?</td><td><code>greater</code></td><td>greater than</td></tr>
+    <tr><td>~보다 <b>작은가</b>?</td><td><code>less</code></td><td>less than</td></tr>
+  </table>
+
+  <div class="cell" data-cell>
+    <div class="cell-head">
+      <span class="cell-title">예제 2 · 단측검정 — 연수 후 성적이 70점보다 높은가?</span>
+      <div class="btns"><button class="reset-btn">초기화</button><button class="run-btn" disabled>▶ 실행</button></div>
+    </div>
+    <textarea spellcheck="false" rows="8"># H0: 모평균 = 70 / H1: 모평균 > 70 (단측!)
+set.seed(1)
+scores <- rnorm(30, mean = 73, sd = 8)
+
+t.test(scores, mu = 70, alternative = 'greater')
+
+# 직접 해보기: 마지막 줄을 t.test(scores, mu = 70)으로
+# 바꿔 실행하면 양측 p가 단측 p의 정확히 2배임을 확인!</textarea>
+    <div class="cell-out"><span class="out-label">CONSOLE OUTPUT</span><span class="out-body"></span></div>
+  </div>
+
+  <ul>
+    <li>단측검정 출력 식별: "greater than" 문구 + <span class="hl">신뢰구간 한쪽이 Inf</span></li>
+    <li><span class="hl">단측 p = 양측 p ÷ 2</span> — 양측 p가 0.05~0.10이면 단측에서 결론이 뒤집힐 수 있음</li>
+  </ul>
+</section>
+
+<!-- ============ 3. 대응표본 ============ -->
+<section>
+  <div class="sec-label">SECTION 3</div>
+  <h2>대응표본 t-검정 (Paired t-test)</h2>
+  <p><span class="hl">같은 대상</span>을 두 번 측정한 데이터(전/후, 약A/약B)의 차이를 검정합니다. 본질은 <b>"차이값의 일표본 t-검정"</b>입니다.</p>
+  <p>데이터: <code>sleep</code> — 같은 환자 10명에게 수면제 1, 2를 각각 투여한 수면시간 증가량. 20행이지만 <b>쌍은 10개</b>.</p>
+
+  <div class="note warn"><b>버전 주의:</b> 교재의 <code>t.test(extra ~ group, data=sleep, paired=TRUE)</code>는 R 4.4.0부터 에러("cannot use 'paired' in formula method"). 아래 벡터 방식을 사용하세요.</div>
+
+  <div class="cell" data-cell>
+    <div class="cell-head">
+      <span class="cell-title">예제 3 · 대응표본 (sleep 데이터)</span>
+      <div class="btns"><button class="reset-btn">초기화</button><button class="run-btn" disabled>▶ 실행</button></div>
+    </div>
+    <textarea spellcheck="false" rows="9"># H0: 두 수면제의 효과 차이 = 0
+g1 <- sleep$extra[sleep$group == 1]
+g2 <- sleep$extra[sleep$group == 2]
+t.test(g1, g2, paired = TRUE)
+
+# 직접 해보기: 아래 주석을 풀고 실행 — 결과가 완전히 같음을 확인
+# (대응표본의 정체 = 차이값의 일표본 검정)
+# t.test(g1 - g2, mu = 0)</textarea>
+    <div class="cell-out"><span class="out-label">CONSOLE OUTPUT</span><span class="out-body"></span></div>
+  </div>
+
+  <ul>
+    <li><span class="hl">df = 쌍의 수 − 1</span> = 10 − 1 = 9 (데이터 행 수 20이 아님! 시험 최다 함정)</li>
+    <li>H0는 항상 "차이 = 0" → 신뢰구간의 <b>0 포함 여부</b>로 판정</li>
+  </ul>
+</section>
+
+<!-- ============ 4. 독립표본 + F검정 ============ -->
+<section>
+  <div class="sec-label">SECTION 4</div>
+  <h2>독립표본 t-검정과 등분산 검정</h2>
+  <p><b>서로 다른 두 집단</b>의 평균을 비교합니다. 검정 전에 두 집단의 분산이 같은지 <span class="hl">F-검정(var.test)</span>으로 먼저 확인합니다.</p>
+
+  <div class="cell" data-cell>
+    <div class="cell-head">
+      <span class="cell-title">예제 4-A · 등분산 검정 (F-검정)</span>
+      <div class="btns"><button class="reset-btn">초기화</button><button class="run-btn" disabled>▶ 실행</button></div>
+    </div>
+    <textarea spellcheck="false" rows="4"># H0: 두 집단의 분산이 같다 (분산비 = 1)
+var.test(extra ~ group, data = sleep)
+# F ≈ 1이면 분산 유사. 판정 기준은 0이 아니라 1!</textarea>
+    <div class="cell-out"><span class="out-label">CONSOLE OUTPUT</span><span class="out-body"></span></div>
+  </div>
+
+  <p>p = 0.74 ≥ 0.05 → 등분산 기각 못함 → <code>var.equal = TRUE</code> 사용 가능:</p>
+
+  <div class="cell" data-cell>
+    <div class="cell-head">
+      <span class="cell-title">예제 4-B · 독립표본 t-검정</span>
+      <div class="btns"><button class="reset-btn">초기화</button><button class="run-btn" disabled>▶ 실행</button></div>
+    </div>
+    <textarea spellcheck="false" rows="6"># H0: 두 집단의 모평균 차이 = 0
+t.test(extra ~ group, data = sleep, var.equal = TRUE)
+
+# 직접 해보기: var.equal = TRUE를 지우고 실행하면
+# 제목이 "Welch Two Sample t-test"로, df가 소수로 바뀜!</textarea>
+    <div class="cell-out"><span class="out-label">CONSOLE OUTPUT</span><span class="out-body"></span></div>
+  </div>
+
+  <h3>★ 같은 데이터, 뒤집힌 결론</h3>
+  <table>
+    <tr><th></th><th>대응표본 (올바른 분석)</th><th>독립표본 (잘못된 취급)</th></tr>
+    <tr><td>df</td><td>9 (쌍 10 − 1)</td><td>18 (10 + 10 − 2)</td></tr>
+    <tr><td>p-value</td><td>0.0028</td><td>0.0791</td></tr>
+    <tr><td>판정</td><td><b>기각</b> (차이 있음)</td><td><b>기각 못함</b></td></tr>
+  </table>
+  <p>대응표본은 개인차를 제거해 약효 차이가 선명하게 보이지만, 독립표본으로 취급하면 개인차가 잡음으로 남아 차이가 묻힙니다. <span class="hl">검정 방법을 틀리면 있는 차이도 못 찾는다</span> — 상황 판별("같은 대상 2회 측정인가?")이 중요한 이유입니다.</p>
+</section>
+
+<!-- ============ 5. 판별 요약 ============ -->
+<section>
+  <div class="sec-label">SUMMARY</div>
+  <h2>t-검정 전체 판별 요약</h2>
+  <table>
+    <tr><th>상황</th><th>검정</th><th>코드 표식</th><th>df</th></tr>
+    <tr><td>한 집단 vs 특정 값</td><td>일표본</td><td><code>mu = 값</code></td><td>n − 1</td></tr>
+    <tr><td>같은 대상 2회 측정</td><td>대응표본</td><td><code>paired = TRUE</code></td><td>쌍 − 1</td></tr>
+    <tr><td>다른 두 집단 (등분산)</td><td>독립표본</td><td><code>var.equal = TRUE</code></td><td>n1 + n2 − 2</td></tr>
+    <tr><td>다른 두 집단 (분산 다름)</td><td>Welch</td><td>옵션 생략 (기본값)</td><td>소수점 df</td></tr>
+  </table>
+  <p>판정은 언제나 동일: <span class="hl">p &lt; α → 기각</span>. 신뢰구간은 H0값(차이는 0, 비율은 1)의 포함 여부로 같은 결론.</p>
+</section>
+
+<footer>
+  ADsP 통계 분석 학습 자료 · R 실행 엔진: webR (R for WebAssembly) · 코드가 브라우저 안에서 실행되며 서버로 전송되지 않습니다.
+</footer>
+
+</div>
+
+<script type="module">
+  import { WebR } from 'https://webr.r-wasm.org/latest/webr.mjs';
+
+  const dot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  const cells = document.querySelectorAll('[data-cell]');
+  let islrReady = false;
+
+  const webR = new WebR();
+
+  function setStatus(msg, state) {
+    statusText.textContent = msg;
+    dot.className = 'dot ' + (state || '');
+  }
+
+  function enableCells(filter) {
+    cells.forEach(cell => {
+      const needs = cell.dataset.needs;
+      if (needs === 'ISLR' && !islrReady && filter !== 'all') return;
+      cell.querySelector('.run-btn').disabled = false;
+    });
+  }
+
+  async function main() {
+    try {
+      await webR.init();
+      setStatus('R 준비 완료 — 내장 데이터 예제 실행 가능 · ISLR 패키지 설치 중…', 'ready loading');
+      enableCells();
+
+      try {
+        await webR.installPackages(['ISLR'], { quiet: true });
+        islrReady = true;
+        setStatus('R 준비 완료 · ISLR 설치 완료 — 모든 예제 실행 가능', 'ready');
+        enableCells('all');
+      } catch (e) {
+        setStatus('R 준비 완료 (ISLR 설치 실패 — Wage 예제 제외 모두 실행 가능)', 'ready');
+      }
+    } catch (e) {
+      setStatus('webR 로딩 실패: 네트워크를 확인하고 새로고침 해주세요.', '');
+    }
+  }
+
+  cells.forEach(cell => {
+    const ta = cell.querySelector('textarea');
+    const runBtn = cell.querySelector('.run-btn');
+    const resetBtn = cell.querySelector('.reset-btn');
+    const outBox = cell.querySelector('.cell-out');
+    const outBody = cell.querySelector('.out-body');
+    const original = ta.value;
+
+    resetBtn.addEventListener('click', () => {
+      ta.value = original;
+      outBox.classList.remove('show');
+      outBody.textContent = '';
+    });
+
+    runBtn.addEventListener('click', async () => {
+      runBtn.disabled = true;
+      runBtn.textContent = '실행 중…';
+      outBox.classList.add('show');
+      outBody.textContent = '';
+
+      const shelter = await new webR.Shelter();
+      try {
+        const result = await shelter.captureR(ta.value, {
+          withAutoprint: true,
+          captureStreams: true,
+          captureConditions: true
+        });
+        let text = '';
+        for (const line of result.output) {
+          if (line.type === 'stdout') text += line.data + '\n';
+          else if (line.type === 'stderr') text += line.data + '\n';
+          else if (line.type === 'warning') text += '경고: ' + line.data.message + '\n';
+          else if (line.type === 'error') text += '에러: ' + line.data.message + '\n';
+        }
+        outBody.textContent = text.trim() || '(출력 없음 — 값을 화면에 표시하려면 마지막 줄에 객체명이나 print()를 쓰세요)';
+      } catch (err) {
+        outBody.textContent = '에러: ' + (err.message || err);
+        outBody.classList.add('err-line');
+      } finally {
+        shelter.purge();
+        runBtn.disabled = false;
+        runBtn.textContent = '▶ 실행';
+      }
+    });
+  });
+
+  main();
+</script>
+
+</body>
+</html>

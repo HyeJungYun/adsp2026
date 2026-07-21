@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>t-검정 실습 — ADsP 통계 분석</title>
+<title>t-검정 + ANOVA 실습 — ADsP 통계 분석</title>
 <style>
   :root {
     --ink: #1a2332;
@@ -138,7 +138,7 @@
 
 <header>
   <div class="eyebrow">ADSP · 3과목 통계 분석 실습</div>
-  <h1>t-검정 <span class="mono">t.test()</span><br>브라우저에서 직접 실행하기</h1>
+  <h1>t-검정 + ANOVA <span class="mono">t.test() · aov()</span><br>브라우저에서 직접 실행하기</h1>
   <p class="lede">설치 없이 이 페이지 안에서 진짜 R 코드가 실행됩니다. 코드를 자유롭게 수정하고 [실행]을 눌러 결과를 확인하세요. 숫자를 바꿔보는 것이 가장 좋은 공부입니다.</p>
 </header>
 
@@ -292,16 +292,80 @@ t.test(extra ~ group, data = sleep, var.equal = TRUE)
   <p>대응표본은 개인차를 제거해 약효 차이가 선명하게 보이지만, 독립표본으로 취급하면 개인차가 잡음으로 남아 차이가 묻힙니다. <span class="hl">검정 방법을 틀리면 있는 차이도 못 찾는다</span> — 상황 판별("같은 대상 2회 측정인가?")이 중요한 이유입니다.</p>
 </section>
 
-<!-- ============ 5. 판별 요약 ============ -->
+<!-- ============ 5. ANOVA 집단비교 ============ -->
+<section>
+  <div class="sec-label">SECTION 5</div>
+  <h2>ANOVA — 일원분산분석 (집단 비교)</h2>
+  <p><b>세 개 이상 집단</b>의 <span class="hl">평균</span> 차이를 분산을 이용해 검정합니다. (이름은 분산분석이지만 목적은 평균 비교 — 함정 단골!)</p>
+  <ul>
+    <li>F = 그룹 간 분산 ÷ 그룹 내 분산 (F-분포 이용)</li>
+    <li>변수: 독립변수 = <b>범주형</b>, 종속변수 = <b>연속형</b></li>
+    <li>3대 가정: <span class="hl">정규성 · 등분산성 · 독립성</span></li>
+    <li>H0: 모든 집단의 평균이 같다 / H1: 적어도 하나는 다르다</li>
+  </ul>
+
+  <div class="cell" data-cell>
+    <div class="cell-head">
+      <span class="cell-title">예제 5 · 일원분산분석 — 통신사 3사 속도 비교</span>
+      <div class="btns"><button class="reset-btn">초기화</button><button class="run-btn" disabled>▶ 실행</button></div>
+    </div>
+    <textarea spellcheck="false" rows="10"># 데이터 생성 (통신사 3사의 통신 속도 가상 데이터)
+phone_speed <- runif(45, 75, 100)
+telecom <- rep(c('A', 'B', 'C'), 15)
+phone_data <- data.frame(phone_speed, telecom)
+
+result <- aov(phone_speed ~ telecom, data = phone_data)
+summary(result)   # ★분산분석표는 반드시 summary()로!
+
+# 직접 해보기: 마지막 줄을 result 로만 바꿔 실행하면
+# F값과 p-value가 안 나오는 것을 확인 (summary 필수)</textarea>
+    <div class="cell-out"><span class="out-label">CONSOLE OUTPUT</span><span class="out-body"></span></div>
+  </div>
+
+  <ul>
+    <li>Df 읽기: 집단 = k−1 (2 → 집단 3개), 잔차 = n−k (42 → <b>n = 45</b>)</li>
+    <li>같은 분포의 난수라 <b>Pr(&gt;F) ≥ 0.05 → 기각 못함</b>이 정답인 결과 (실행마다 숫자는 다름)</li>
+    <li><b>사후검정(Post Hoc)</b>: 기각 시 어느 집단이 다른지 찾는 절차 — Tukey(동일 크기 표본), Scheffe·Fisher's LSD(다른 크기 표본)</li>
+  </ul>
+</section>
+
+<!-- ============ 6. ANOVA 회귀 ============ -->
+<section>
+  <div class="sec-label">SECTION 6</div>
+  <h2>ANOVA — 회귀모형의 분산분석표</h2>
+  <p>ANOVA의 두 번째 용도: <span class="hl">회귀 모형에서 설명변수의 유의성 평가</span>. 집단 비교는 <code>aov()</code>, 회귀 분산분석표는 <code>anova(lm객체)</code>를 씁니다.</p>
+
+  <div class="cell" data-cell>
+    <div class="cell-head">
+      <span class="cell-title">예제 6 · 회귀 분산분석표 (cars 내장 데이터)</span>
+      <div class="btns"><button class="reset-btn">초기화</button><button class="run-btn" disabled>▶ 실행</button></div>
+    </div>
+    <textarea spellcheck="false" rows="4"># cars: 내장 데이터 (speed: 속도, dist: 제동거리)
+out <- lm(dist ~ speed, data = cars)
+anova(out)</textarea>
+    <div class="cell-out"><span class="out-label">CONSOLE OUTPUT</span><span class="out-body"></span></div>
+  </div>
+
+  <ul>
+    <li><b>Pr(&gt;F) = p-value</b> → 1.49e-12 &lt; 0.05 → speed는 유의한 설명변수 (<code>***</code> = p &lt; 0.001)</li>
+    <li><b>Mean Sq 236.5 = MSE = 오차 분산의 불편추정량</b> (n이 아닌 자유도로 나눠 불편성 확보)</li>
+    <li>Residuals Df = n − 2 → 48 + 2 = <b>n = 50</b> ← 계산문제 단골</li>
+    <li>구조는 집단 비교와 동일: <span class="hl">설명된 변동 ÷ 오차</span> (그룹 간÷그룹 내 ↔ MSR÷MSE)</li>
+  </ul>
+</section>
+
+<!-- ============ 7. 판별 요약 ============ -->
 <section>
   <div class="sec-label">SUMMARY</div>
-  <h2>t-검정 전체 판별 요약</h2>
+  <h2>전체 판별 요약</h2>
   <table>
     <tr><th>상황</th><th>검정</th><th>코드 표식</th><th>df</th></tr>
     <tr><td>한 집단 vs 특정 값</td><td>일표본</td><td><code>mu = 값</code></td><td>n − 1</td></tr>
     <tr><td>같은 대상 2회 측정</td><td>대응표본</td><td><code>paired = TRUE</code></td><td>쌍 − 1</td></tr>
     <tr><td>다른 두 집단 (등분산)</td><td>독립표본</td><td><code>var.equal = TRUE</code></td><td>n1 + n2 − 2</td></tr>
     <tr><td>다른 두 집단 (분산 다름)</td><td>Welch</td><td>옵션 생략 (기본값)</td><td>소수점 df</td></tr>
+    <tr><td>세 집단 이상 평균 비교</td><td>ANOVA</td><td><code>aov() + summary()</code></td><td>k−1, n−k</td></tr>
+    <tr><td>회귀 설명변수 유의성</td><td>ANOVA</td><td><code>anova(lm객체)</code></td><td>1, n−2</td></tr>
   </table>
   <p>판정은 언제나 동일: <span class="hl">p &lt; α → 기각</span>. 신뢰구간은 H0값(차이는 0, 비율은 1)의 포함 여부로 같은 결론.</p>
 </section>
